@@ -66,6 +66,7 @@ async function saveTranscript(payload) {
   const text = buildFileText(payload, savedAtIso);
   // Service workers have no URL.createObjectURL; use a data URL.
   const dataUrl = "data:text/plain;charset=utf-8," + encodeURIComponent(text);
+  console.log("[YTH] downloading:", filename, `(${payload.lines.length} lines)`);
 
   chrome.downloads.download(
     {
@@ -76,9 +77,11 @@ async function saveTranscript(payload) {
     },
     (downloadId) => {
       if (chrome.runtime.lastError || downloadId === undefined) {
+        console.error("[YTH] download failed:", chrome.runtime.lastError);
         notify("Save failed", chrome.runtime.lastError?.message || "Unknown download error");
         return;
       }
+      console.log("[YTH] download started, id =", downloadId);
       notify("Transcript saved", `${safeChannel}/${payload.video_id}_${safeTitle}.txt`);
     }
   );
@@ -96,25 +99,95 @@ async function saveTranscript(payload) {
   });
 }
 
+// --- Page-injected scraper (runs in the YouTube tab via chrome.scripting) -
+// Self-contained: no external references, since it executes in the page.
+
+function pageScrapeTranscript() {
+  const SELECTORS = {
+    panel: ["ytd-transcript-renderer", '[target-id="engagement-panel-searchable-transcript"]'],
+    segment: ["ytd-transcript-segment-renderer", 'div[class*="segment"]'],
+    timestamp: [".segment-timestamp", '[class*="timestamp"]'],
+    text: [".segment-text", '[class*="cue"]'],
+    channel: ["ytd-channel-name yt-formatted-string", "#channel-name a"],
+    title: ["ytd-watch-metadata h1 yt-formatted-string", "#title h1"],
+  };
+  const first = (sels, root = document) => {
+    for (const s of sels) {
+      const el = root.querySelector(s);
+      if (el) return el;
+    }
+    return null;
+  };
+  const all = (sels, root = document) => {
+    for (const s of sels) {
+      const els = root.querySelectorAll(s);
+      if (els.length) return Array.from(els);
+    }
+    return [];
+  };
+  const normTs = (raw) => {
+    const p = (raw || "").trim().split(":").map((x) => Number(x.trim()) || 0);
+    let h = 0, m = 0, s = 0;
+    if (p.length === 3) [h, m, s] = p;
+    else if (p.length === 2) [m, s] = p;
+    else s = p[0] || 0;
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(h)}:${pad(m)}:${pad(s)}`;
+  };
+
+  const panel = first(SELECTORS.panel);
+  if (!panel) return { ok: false, reason: "no-panel" };
+  const segs = all(SELECTORS.segment, panel);
+  if (!segs.length) return { ok: false, reason: "no-segments" };
+
+  const lines = [];
+  for (const seg of segs) {
+    const txt = (first(SELECTORS.text, seg)?.textContent || "").trim().replace(/\s+/g, " ");
+    if (!txt) continue;
+    const tsEl = first(SELECTORS.timestamp, seg);
+    lines.push({ timestamp: tsEl ? normTs(tsEl.textContent) : "00:00:00", text: txt });
+  }
+  if (!lines.length) return { ok: false, reason: "no-lines" };
+
+  return {
+    ok: true,
+    payload: {
+      video_id: new URLSearchParams(location.search).get("v") || "",
+      video_title: (first(SELECTORS.title)?.textContent || document.title.replace(/ - YouTube$/, "")).trim(),
+      channel_name: (first(SELECTORS.channel)?.textContent || "Unknown_Channel").trim(),
+      video_url: location.href.split("&")[0],
+      lines,
+    },
+  };
+}
+
 // --- Trigger from toolbar icon / keyboard shortcut ------------------------
 
 async function triggerActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  console.log("[YTH] trigger; active tab url =", tab?.url);
   if (!tab || !/^https?:\/\/www\.youtube\.com\/watch/.test(tab.url || "")) {
     notify("Not a YouTube video", "Navigate to a YouTube video first.");
     return;
   }
-  chrome.tabs.sendMessage(tab.id, { type: "requestScrape" }, (result) => {
-    if (chrome.runtime.lastError || !result) {
-      notify("Open the transcript panel", "Open the YouTube transcript panel first, then try again.");
-      return;
-    }
-    if (result.ok) {
-      saveTranscript(result.payload);
-    } else {
-      notify("Open the transcript panel", "Open the YouTube transcript panel first, then try again.");
-    }
-  });
+  let results;
+  try {
+    results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: pageScrapeTranscript,
+    });
+  } catch (e) {
+    console.error("[YTH] executeScript failed:", e);
+    notify("Save failed", "Could not read the page. Reload the YouTube tab and try again.");
+    return;
+  }
+  const result = results?.[0]?.result;
+  console.log("[YTH] scrape result:", result);
+  if (result?.ok) {
+    saveTranscript(result.payload);
+  } else {
+    notify("Open the transcript panel", `Open the YouTube transcript panel first (${result?.reason || "no result"}).`);
+  }
 }
 
 chrome.action.onClicked.addListener(triggerActiveTab);

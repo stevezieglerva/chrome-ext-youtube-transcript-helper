@@ -3,7 +3,7 @@
   "name": "YouTube Transcript Helper",
   "version": "1.0.0",
   "description": "Save the open YouTube transcript panel to a structured local file for 2nd Brain ingestion.",
-  "permissions": ["downloads", "notifications", "storage", "activeTab", "contextMenus"],
+  "permissions": ["downloads", "notifications", "storage", "activeTab", "contextMenus", "scripting"],
   "host_permissions": ["*://www.youtube.com/*"],
   "background": {
     "service_worker": "background.js"
