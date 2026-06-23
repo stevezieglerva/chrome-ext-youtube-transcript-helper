@@ -110,13 +110,6 @@ async function saveTranscript(payload, tabId) {
 // Self-contained: no external references, since it executes in the page.
 
 function pageScrapeTranscript() {
-  const first = (sels, root = document) => {
-    for (const s of sels) {
-      const el = root.querySelector(s);
-      if (el) return el;
-    }
-    return null;
-  };
   const normTs = (raw) => {
     const p = (raw || "").trim().split(":").map((x) => Number(x.trim()) || 0);
     let h = 0, m = 0, s = 0;
@@ -127,39 +120,57 @@ function pageScrapeTranscript() {
     return `${pad(h)}:${pad(m)}:${pad(s)}`;
   };
 
-  // Locate the transcript panel (fall back to whole document).
-  const panel =
-    first(["ytd-transcript-renderer", '[target-id="engagement-panel-searchable-transcript"]']) || document;
+  // Deep walk that pierces shadow roots.
+  const deepAll = (predicate) => {
+    const out = [];
+    const seen = new Set();
+    const walk = (root) => {
+      if (!root || seen.has(root)) return;
+      seen.add(root);
+      let nodes;
+      try {
+        nodes = root.querySelectorAll("*");
+      } catch {
+        return;
+      }
+      for (const el of nodes) {
+        if (predicate(el)) out.push(el);
+        if (el.shadowRoot) walk(el.shadowRoot);
+      }
+    };
+    walk(document);
+    return out;
+  };
+  const deepFirst = (predicate) => deepAll(predicate)[0] || null;
 
-  // Find segment rows: known element first, then any class containing
-  // "segment" that holds a timestamp, then any small element whose text
-  // begins with a timestamp.
-  let segs = Array.from(panel.querySelectorAll("ytd-transcript-segment-renderer"));
+  // Find transcript segment rows, document-wide, piercing shadow DOM.
+  let segs = deepAll((el) => el.tagName === "YTD-TRANSCRIPT-SEGMENT-RENDERER");
   if (!segs.length) {
-    segs = Array.from(panel.querySelectorAll('[class*="segment"]')).filter((el) =>
-      /\b\d{1,2}:\d{2}\b/.test(el.textContent || "")
+    segs = deepAll(
+      (el) =>
+        /segment/i.test(el.getAttribute && (el.getAttribute("class") || "")) &&
+        /\b\d{1,2}:\d{2}\b/.test(el.textContent || "") &&
+        el.children.length <= 4
     );
   }
 
-  // Diagnostics (returned on failure, written to _DEBUG.txt by background).
-  const debug = { panelTag: panel.tagName || "DOCUMENT", segCount: segs.length, tagCounts: {}, sampleHTML: "" };
-  if (panel.querySelectorAll) {
-    panel.querySelectorAll("*").forEach((e) => {
-      const t = e.tagName.toLowerCase();
-      if (/segment|cue|transcript/.test(t)) debug.tagCounts[t] = (debug.tagCounts[t] || 0) + 1;
-    });
-  }
+  // Diagnostics — document-wide census, written to _DEBUG.txt on failure.
+  const debug = { segCount: segs.length, tagCounts: {}, tsTextCount: 0, sampleHTML: "" };
+  deepAll((el) => {
+    const t = el.tagName.toLowerCase();
+    if (/segment|cue|transcript/.test(t)) debug.tagCounts[t] = (debug.tagCounts[t] || 0) + 1;
+    if (/^\s*\d{1,2}:\d{2}\b/.test(el.textContent || "") && el.children.length <= 3) debug.tsTextCount++;
+    return false;
+  });
   if (segs[0]) {
     debug.sampleHTML = segs[0].outerHTML.slice(0, 700);
   } else {
-    const any = Array.from(panel.querySelectorAll ? panel.querySelectorAll("*") : []).find(
-      (e) => /^\s*\d{1,2}:\d{2}/.test(e.textContent || "") && e.children.length <= 3
-    );
-    debug.sampleHTML = any ? any.outerHTML.slice(0, 700) : "(no timestamp-like element found)";
+    const any = deepFirst((e) => /^\s*\d{1,2}:\d{2}/.test(e.textContent || "") && e.children.length <= 3);
+    debug.sampleHTML = any ? any.outerHTML.slice(0, 700) : "(no timestamp-like element found anywhere)";
   }
 
   if (!segs.length) {
-    return { ok: false, reason: panel === document ? "no-panel" : "no-segments", debug };
+    return { ok: false, reason: "no-segments", debug };
   }
 
   const lines = [];
@@ -170,7 +181,6 @@ function pageScrapeTranscript() {
     const txtEl = seg.querySelector('.segment-text, [class*="cue"], yt-formatted-string');
     if (txtEl) text = (txtEl.textContent || "").trim().replace(/\s+/g, " ");
     if (tsEl) timestamp = normTs(tsEl.textContent);
-    // Generic fallback: parse "MM:SS rest of line" out of the row text.
     if (!text || !timestamp) {
       const full = (seg.textContent || "").trim().replace(/\s+/g, " ");
       const m = full.match(/^(\d{1,2}:\d{2}(?::\d{2})?)\s*(.*)$/);
@@ -183,17 +193,19 @@ function pageScrapeTranscript() {
   }
   if (!lines.length) return { ok: false, reason: "no-lines", debug };
 
+  const titleEl = deepFirst(
+    (e) => e.tagName === "H1" && e.closest && e.closest("ytd-watch-metadata")
+  );
+  const channelEl = deepFirst(
+    (e) => e.tagName === "A" && e.closest && e.closest("ytd-channel-name")
+  );
+
   return {
     ok: true,
     payload: {
       video_id: new URLSearchParams(location.search).get("v") || "",
-      video_title: (
-        first(["ytd-watch-metadata h1 yt-formatted-string", "#title h1"])?.textContent ||
-        document.title.replace(/ - YouTube$/, "")
-      ).trim(),
-      channel_name: (
-        first(["ytd-channel-name yt-formatted-string", "#channel-name a"])?.textContent || "Unknown_Channel"
-      ).trim(),
+      video_title: (titleEl?.textContent || document.title.replace(/ - YouTube$/, "")).trim(),
+      channel_name: (channelEl?.textContent || "Unknown_Channel").trim(),
       video_url: location.href.split("&")[0],
       lines,
     },
