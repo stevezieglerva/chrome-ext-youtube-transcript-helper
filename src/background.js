@@ -171,25 +171,34 @@ function pageScrapeTranscript() {
     return { ok: false, reason: "no-segments", debug };
   }
 
+  // Strip a leading screen-reader duration label like "14 seconds" or
+  // "1 minute, 8 seconds" that YouTube places after the timestamp.
+  const stripDuration = (s) =>
+    s.replace(/^(?:\d+\s+(?:hours?|minutes?|seconds?)(?:,\s*)?)+/i, "").trim();
+  const tsSelector = '[class*="Timestamp"], .segment-timestamp, [class*="timestamp"]';
+
   const lines = [];
   for (const seg of segs) {
-    let timestamp = "";
+    const tsEl = seg.querySelector(tsSelector);
+    let timestamp = tsEl ? normTs(tsEl.textContent) : "";
+
+    // Prefer an explicit snippet/text element; otherwise clone the segment,
+    // remove the timestamp node, and strip the duration label.
     let text = "";
-    const tsEl = seg.querySelector(
-      '[class*="Timestamp"], .segment-timestamp, [class*="timestamp"]'
-    );
     const txtEl = seg.querySelector(
-      '[class*="SegmentText"], .segment-text, [class*="cue"], yt-formatted-string'
+      '[class*="SegmentText"], [class*="SnippetText"], .segment-text, [class*="cue"]'
     );
-    if (txtEl) text = (txtEl.textContent || "").trim().replace(/\s+/g, " ");
-    if (tsEl) timestamp = normTs(tsEl.textContent);
-    if (!text || !timestamp) {
-      const full = (seg.textContent || "").trim().replace(/\s+/g, " ");
-      const m = full.match(/^(\d{1,2}:\d{2}(?::\d{2})?)\s*(.*)$/);
-      if (m) {
-        if (!timestamp) timestamp = normTs(m[1]);
-        if (!text) text = m[2];
-      }
+    if (txtEl) {
+      text = (txtEl.textContent || "").trim().replace(/\s+/g, " ");
+    } else {
+      const clone = seg.cloneNode(true);
+      clone.querySelectorAll(tsSelector).forEach((n) => n.remove());
+      text = stripDuration((clone.textContent || "").trim().replace(/\s+/g, " "));
+    }
+
+    if (!timestamp) {
+      const m = (seg.textContent || "").trim().match(/^(\d{1,2}:\d{2}(?::\d{2})?)/);
+      if (m) timestamp = normTs(m[1]);
     }
     if (text) lines.push({ timestamp: timestamp || "00:00:00", text });
   }
