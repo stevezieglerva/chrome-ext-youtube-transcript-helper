@@ -60,7 +60,7 @@ async function appendSaveLog(entry) {
 
 // --- Core save ------------------------------------------------------------
 
-async function saveTranscript(payload) {
+async function saveTranscript(payload, tabId) {
   const savedAtIso = new Date().toISOString();
   const safeChannel = sanitize(payload.channel_name) || "Unknown_Channel";
   const safeTitle = sanitize(payload.video_title) || "untitled";
@@ -81,11 +81,15 @@ async function saveTranscript(payload) {
     (downloadId) => {
       if (chrome.runtime.lastError || downloadId === undefined) {
         console.error("[YTH] download failed:", chrome.runtime.lastError);
-        notify("Save failed", chrome.runtime.lastError?.message || "Unknown download error");
+        const msg = chrome.runtime.lastError?.message || "Unknown download error";
+        notify("Save failed", msg);
+        if (tabId) showToast(tabId, `❌ Save failed: ${msg}`, "#d83933");
         return;
       }
       console.log("[YTH] download started, id =", downloadId);
-      notify("Transcript saved", `${safeChannel}/${payload.video_id}_${safeTitle}.txt`);
+      const rel = `${safeChannel}/${payload.video_id}_${safeTitle}.txt`;
+      notify("Transcript saved", rel);
+      if (tabId) showToast(tabId, `✅ Saved ${payload.lines.length} lines → ${rel}`, "#00a91c");
     }
   );
 
@@ -164,16 +168,53 @@ function pageScrapeTranscript() {
   };
 }
 
+// --- In-page toast (injected) --------------------------------------------
+// Shows a banner directly on the YouTube page — independent of macOS
+// notification settings and visible in the tab the user is looking at.
+
+function pageToast(message, bgColor) {
+  let el = document.getElementById("yth-toast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "yth-toast";
+    el.style.cssText =
+      "position:fixed;top:72px;right:20px;z-index:2147483647;padding:12px 18px;" +
+      "border-radius:8px;color:#fff;font-family:Roboto,Arial,sans-serif;font-size:14px;" +
+      "font-weight:500;box-shadow:0 4px 14px rgba(0,0,0,0.35);max-width:380px;" +
+      "transition:opacity 0.4s;";
+    document.body.appendChild(el);
+  }
+  el.textContent = message;
+  el.style.background = bgColor;
+  el.style.opacity = "1";
+  clearTimeout(el._ythTimer);
+  el._ythTimer = setTimeout(() => (el.style.opacity = "0"), 5000);
+}
+
+async function showToast(tabId, message, bgColor) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: pageToast,
+      args: [message, bgColor],
+    });
+  } catch (e) {
+    console.error("[YTH] toast injection failed:", e);
+  }
+}
+
 // --- Trigger from toolbar icon / keyboard shortcut ------------------------
 
 async function triggerActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   console.log("[YTH] trigger; active tab url =", tab?.url);
-  notify(`Scraping transcript… (v${VERSION})`, "Reading the open transcript panel.");
   if (!tab || !/^https?:\/\/www\.youtube\.com\/watch/.test(tab.url || "")) {
     notify("Not a YouTube video", "Navigate to a YouTube video first.");
     return;
   }
+
+  await showToast(tab.id, `⏳ Scraping transcript… (v${VERSION})`, "#0b4778");
+
   let results;
   try {
     results = await chrome.scripting.executeScript({
@@ -182,15 +223,16 @@ async function triggerActiveTab() {
     });
   } catch (e) {
     console.error("[YTH] executeScript failed:", e);
-    notify("Save failed", "Could not read the page. Reload the YouTube tab and try again.");
+    await showToast(tab.id, "❌ Could not read the page — reload the tab and retry", "#d83933");
     return;
   }
+
   const result = results?.[0]?.result;
   console.log("[YTH] scrape result:", result);
   if (result?.ok) {
-    saveTranscript(result.payload);
+    saveTranscript(result.payload, tab.id);
   } else {
-    notify("Open the transcript panel", `Open the YouTube transcript panel first (${result?.reason || "no result"}).`);
+    await showToast(tab.id, `❌ Transcript panel not found (${result?.reason || "no result"})`, "#d83933");
   }
 }
 
