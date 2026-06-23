@@ -143,16 +143,14 @@ function pageScrapeTranscript() {
   };
   const deepFirst = (predicate) => deepAll(predicate)[0] || null;
 
-  // Find transcript segment rows, document-wide, piercing shadow DOM.
-  let segs = deepAll((el) => el.tagName === "YTD-TRANSCRIPT-SEGMENT-RENDERER");
-  if (!segs.length) {
-    segs = deepAll(
-      (el) =>
-        /segment/i.test(el.getAttribute && (el.getAttribute("class") || "")) &&
-        /\b\d{1,2}:\d{2}\b/.test(el.textContent || "") &&
-        el.children.length <= 4
-    );
-  }
+  // Find transcript segment CONTAINERS, document-wide, piercing shadow DOM.
+  // New YouTube uses <transcript-segment-view-model>; older uses
+  // <ytd-transcript-segment-renderer>.
+  let segs = deepAll(
+    (el) =>
+      el.tagName === "TRANSCRIPT-SEGMENT-VIEW-MODEL" ||
+      el.tagName === "YTD-TRANSCRIPT-SEGMENT-RENDERER"
+  );
 
   // Diagnostics — document-wide census, written to _DEBUG.txt on failure.
   const debug = { segCount: segs.length, tagCounts: {}, tsTextCount: 0, sampleHTML: "" };
@@ -177,8 +175,12 @@ function pageScrapeTranscript() {
   for (const seg of segs) {
     let timestamp = "";
     let text = "";
-    const tsEl = seg.querySelector('.segment-timestamp, [class*="timestamp"]');
-    const txtEl = seg.querySelector('.segment-text, [class*="cue"], yt-formatted-string');
+    const tsEl = seg.querySelector(
+      '[class*="Timestamp"], .segment-timestamp, [class*="timestamp"]'
+    );
+    const txtEl = seg.querySelector(
+      '[class*="SegmentText"], .segment-text, [class*="cue"], yt-formatted-string'
+    );
     if (txtEl) text = (txtEl.textContent || "").trim().replace(/\s+/g, " ");
     if (tsEl) timestamp = normTs(tsEl.textContent);
     if (!text || !timestamp) {
