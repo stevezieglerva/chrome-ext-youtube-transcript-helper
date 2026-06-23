@@ -1,0 +1,42 @@
+<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>
+  <!-- YouTube Tab -->
+  <mxCell id="2" value="YouTube Tab (youtube.com/watch*)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=13;" vertex="1" parent="1"><mxGeometry x="40" y="40" width="280" height="60" as="geometry"/></mxCell>
+  <!-- content.js -->
+  <mxCell id="3" value="content.js&#xa;(Content Script)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="160" width="200" height="60" as="geometry"/></mxCell>
+  <!-- YouTube DOM -->
+  <mxCell id="4" value="YouTube DOM&#xa;(ytd-transcript-segment-renderer&#xa;ytd-channel-name, h1 title)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="300" y="160" width="240" height="60" as="geometry"/></mxCell>
+  <!-- background.js -->
+  <mxCell id="5" value="background.js&#xa;(MV3 Service Worker)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="300" width="200" height="60" as="geometry"/></mxCell>
+  <!-- Chrome Downloads API -->
+  <mxCell id="6" value="chrome.downloads API&#xa;→ ~/Downloads/youtube-transcripts/&#xa;&lt;safe_channel&gt;/&lt;video_id&gt;_&lt;safe_title&gt;.txt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1"><mxGeometry x="300" y="280" width="280" height="60" as="geometry"/></mxCell>
+  <!-- Chrome Notifications API -->
+  <mxCell id="7" value="chrome.notifications API&#xa;(toast: saved / error)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1"><mxGeometry x="300" y="360" width="240" height="60" as="geometry"/></mxCell>
+  <!-- chrome.storage.local -->
+  <mxCell id="8" value="chrome.storage.local&#xa;SaveLog[ ] (max 500 entries)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1"><mxGeometry x="300" y="440" width="240" height="60" as="geometry"/></mxCell>
+  <!-- history.html -->
+  <mxCell id="9" value="history.html + history.js&#xa;(Extension page — save log viewer)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="440" width="200" height="60" as="geometry"/></mxCell>
+  <!-- manifest.json -->
+  <mxCell id="10" value="manifest.json (MV3)&#xa;permissions: downloads, notifications,&#xa;storage, activeTab" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="560" width="240" height="60" as="geometry"/></mxCell>
+  <!-- Toolbar / Keyboard Shortcut -->
+  <mxCell id="11" value="User Triggers&#xa;• Toolbar icon click&#xa;• Keyboard shortcut (Cmd+Shift+T)&#xa;• Injected Save button (panel top)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1"><mxGeometry x="580" y="160" width="220" height="80" as="geometry"/></mxCell>
+
+  <!-- Edges -->
+  <!-- YouTube Tab contains content.js -->
+  <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="2" target="3" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+  <!-- content.js reads DOM -->
+  <mxCell id="e2" value="reads" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="3" target="4" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+  <!-- content.js sends message to background -->
+  <mxCell id="e3" value="sendMessage&#xa;(TranscriptPayload)" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="3" target="5" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+  <!-- background writes file -->
+  <mxCell id="e4" value="download()" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="5" target="6" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+  <!-- background fires notification -->
+  <mxCell id="e5" value="notify()" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="5" target="7" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+  <!-- background writes log -->
+  <mxCell id="e6" value="set(saveLog)" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="5" target="8" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+  <!-- history reads log -->
+  <mxCell id="e7" value="get(saveLog)" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="9" target="8" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+  <!-- user triggers content.js -->
+  <mxCell id="e8" value="triggers" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="11" target="3" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+  <!-- toolbar triggers background directly -->
+  <mxCell id="e9" value="action.onClicked" style="edgeStyle=orthogonalEdgeStyle;" edge="1" source="11" target="5" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+</root></mxGraphModel>
