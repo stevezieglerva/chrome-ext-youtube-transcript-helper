@@ -110,27 +110,12 @@ async function saveTranscript(payload, tabId) {
 // Self-contained: no external references, since it executes in the page.
 
 function pageScrapeTranscript() {
-  const SELECTORS = {
-    panel: ["ytd-transcript-renderer", '[target-id="engagement-panel-searchable-transcript"]'],
-    segment: ["ytd-transcript-segment-renderer", 'div[class*="segment"]'],
-    timestamp: [".segment-timestamp", '[class*="timestamp"]'],
-    text: [".segment-text", '[class*="cue"]'],
-    channel: ["ytd-channel-name yt-formatted-string", "#channel-name a"],
-    title: ["ytd-watch-metadata h1 yt-formatted-string", "#title h1"],
-  };
   const first = (sels, root = document) => {
     for (const s of sels) {
       const el = root.querySelector(s);
       if (el) return el;
     }
     return null;
-  };
-  const all = (sels, root = document) => {
-    for (const s of sels) {
-      const els = root.querySelectorAll(s);
-      if (els.length) return Array.from(els);
-    }
-    return [];
   };
   const normTs = (raw) => {
     const p = (raw || "").trim().split(":").map((x) => Number(x.trim()) || 0);
@@ -142,26 +127,73 @@ function pageScrapeTranscript() {
     return `${pad(h)}:${pad(m)}:${pad(s)}`;
   };
 
-  const panel = first(SELECTORS.panel);
-  if (!panel) return { ok: false, reason: "no-panel" };
-  const segs = all(SELECTORS.segment, panel);
-  if (!segs.length) return { ok: false, reason: "no-segments" };
+  // Locate the transcript panel (fall back to whole document).
+  const panel =
+    first(["ytd-transcript-renderer", '[target-id="engagement-panel-searchable-transcript"]']) || document;
+
+  // Find segment rows: known element first, then any class containing
+  // "segment" that holds a timestamp, then any small element whose text
+  // begins with a timestamp.
+  let segs = Array.from(panel.querySelectorAll("ytd-transcript-segment-renderer"));
+  if (!segs.length) {
+    segs = Array.from(panel.querySelectorAll('[class*="segment"]')).filter((el) =>
+      /\b\d{1,2}:\d{2}\b/.test(el.textContent || "")
+    );
+  }
+
+  // Diagnostics (returned on failure, written to _DEBUG.txt by background).
+  const debug = { panelTag: panel.tagName || "DOCUMENT", segCount: segs.length, tagCounts: {}, sampleHTML: "" };
+  if (panel.querySelectorAll) {
+    panel.querySelectorAll("*").forEach((e) => {
+      const t = e.tagName.toLowerCase();
+      if (/segment|cue|transcript/.test(t)) debug.tagCounts[t] = (debug.tagCounts[t] || 0) + 1;
+    });
+  }
+  if (segs[0]) {
+    debug.sampleHTML = segs[0].outerHTML.slice(0, 700);
+  } else {
+    const any = Array.from(panel.querySelectorAll ? panel.querySelectorAll("*") : []).find(
+      (e) => /^\s*\d{1,2}:\d{2}/.test(e.textContent || "") && e.children.length <= 3
+    );
+    debug.sampleHTML = any ? any.outerHTML.slice(0, 700) : "(no timestamp-like element found)";
+  }
+
+  if (!segs.length) {
+    return { ok: false, reason: panel === document ? "no-panel" : "no-segments", debug };
+  }
 
   const lines = [];
   for (const seg of segs) {
-    const txt = (first(SELECTORS.text, seg)?.textContent || "").trim().replace(/\s+/g, " ");
-    if (!txt) continue;
-    const tsEl = first(SELECTORS.timestamp, seg);
-    lines.push({ timestamp: tsEl ? normTs(tsEl.textContent) : "00:00:00", text: txt });
+    let timestamp = "";
+    let text = "";
+    const tsEl = seg.querySelector('.segment-timestamp, [class*="timestamp"]');
+    const txtEl = seg.querySelector('.segment-text, [class*="cue"], yt-formatted-string');
+    if (txtEl) text = (txtEl.textContent || "").trim().replace(/\s+/g, " ");
+    if (tsEl) timestamp = normTs(tsEl.textContent);
+    // Generic fallback: parse "MM:SS rest of line" out of the row text.
+    if (!text || !timestamp) {
+      const full = (seg.textContent || "").trim().replace(/\s+/g, " ");
+      const m = full.match(/^(\d{1,2}:\d{2}(?::\d{2})?)\s*(.*)$/);
+      if (m) {
+        if (!timestamp) timestamp = normTs(m[1]);
+        if (!text) text = m[2];
+      }
+    }
+    if (text) lines.push({ timestamp: timestamp || "00:00:00", text });
   }
-  if (!lines.length) return { ok: false, reason: "no-lines" };
+  if (!lines.length) return { ok: false, reason: "no-lines", debug };
 
   return {
     ok: true,
     payload: {
       video_id: new URLSearchParams(location.search).get("v") || "",
-      video_title: (first(SELECTORS.title)?.textContent || document.title.replace(/ - YouTube$/, "")).trim(),
-      channel_name: (first(SELECTORS.channel)?.textContent || "Unknown_Channel").trim(),
+      video_title: (
+        first(["ytd-watch-metadata h1 yt-formatted-string", "#title h1"])?.textContent ||
+        document.title.replace(/ - YouTube$/, "")
+      ).trim(),
+      channel_name: (
+        first(["ytd-channel-name yt-formatted-string", "#channel-name a"])?.textContent || "Unknown_Channel"
+      ).trim(),
       video_url: location.href.split("&")[0],
       lines,
     },
@@ -232,7 +264,16 @@ async function triggerActiveTab() {
   if (result?.ok) {
     saveTranscript(result.payload, tab.id);
   } else {
-    await showToast(tab.id, `❌ Transcript panel not found (${result?.reason || "no result"})`, "#d83933");
+    await showToast(tab.id, `❌ ${result?.reason || "no result"} — wrote _DEBUG.txt to Downloads`, "#d83933");
+    const dbg =
+      `REASON: ${result?.reason}\nVERSION: ${VERSION}\nURL: ${tab.url}\n\n` +
+      JSON.stringify(result?.debug || {}, null, 2);
+    chrome.downloads.download({
+      url: "data:text/plain;charset=utf-8," + encodeURIComponent(dbg),
+      filename: `${DOWNLOAD_ROOT}/_DEBUG.txt`,
+      conflictAction: "overwrite",
+      saveAs: false,
+    });
   }
 }
 
