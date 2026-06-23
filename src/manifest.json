@@ -31,8 +31,8 @@
   "commands": {
     "save-transcript": {
       "suggested_key": {
-        "default": "Ctrl+Shift+T",
-        "mac": "Command+Shift+T"
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
       },
       "description": "Save the open YouTube transcript to a local file"
     }

@@ -43,9 +43,11 @@ Lines:   312
 
 | Method | How |
 |---|---|
+| **Toolbar icon** | Click the extension icon in the Chrome toolbar. Works on any open transcript panel — independent of the in-page button. |
+| **Keyboard shortcut** | `Cmd+Shift+Y` (Mac) / `Ctrl+Shift+Y` (Win/Linux). Rebind at `chrome://extensions/shortcuts`. |
 | **Injected button** | A "💾 Save Transcript" button appears at the top of the transcript panel. |
-| **Toolbar icon** | Click the extension icon in the Chrome toolbar. |
-| **Keyboard shortcut** | `Cmd+Shift+T` (Mac) / `Ctrl+Shift+T` (Win/Linux). Rebind at `chrome://extensions/shortcuts`. |
+
+> `Cmd+Shift+T` is **not** usable — Chrome reserves it for "reopen closed tab". The shortcut is `Cmd+Shift+Y`.
 
 The transcript panel **must be open** before triggering, or you'll get a notification telling you to open it.
 
