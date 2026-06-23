@@ -23,16 +23,18 @@ function sanitize(name) {
 
 function buildFileText(payload, savedAtIso) {
   const header = [
-    `Title:   ${payload.video_title}`,
-    `Channel: ${payload.channel_name}`,
-    `URL:     ${payload.video_url}`,
-    `Saved:   ${savedAtIso}`,
-    `Lines:   ${payload.lines.length}`,
+    `Title:    ${payload.video_title}`,
+    `Channel:  ${payload.channel_name}`,
+    `URL:      ${payload.video_url}`,
+    `Saved:    ${savedAtIso}`,
+    `Lines:    ${payload.lines.length}`,
+    `Saved by: YouTube Transcript Helper v${VERSION}`,
     "=".repeat(60),
     "",
   ].join("\n");
 
-  const body = payload.lines.map((l) => `[${l.timestamp}] ${l.text}`).join("\n");
+  // Timestamps are intentionally omitted from the output — text only.
+  const body = payload.lines.map((l) => l.text).join("\n");
   return header + body + "\n";
 }
 
