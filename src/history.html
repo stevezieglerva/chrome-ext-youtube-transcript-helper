@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Saved Transcripts — YouTube Transcript Helper</title>
+    <link rel="icon" href="icons/icon48.png" />
+    <style>
+      :root {
+        --color-primary-darker: #0b4778;
+        --color-accent-cool: #00bde3;
+        --color-base-darkest: #1b1b1b;
+        --color-base-lighter: #dfe1e2;
+        --color-white: #ffffff;
+        --font-sans: "Roboto", system-ui, -apple-system, sans-serif;
+        --font-size-lg: 18px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font-sans);
+        font-size: var(--font-size-lg);
+        color: var(--color-base-darkest);
+        background: var(--color-white);
+      }
+      header {
+        background: var(--color-primary-darker);
+        color: var(--color-white);
+        border-bottom: 4px solid var(--color-accent-cool);
+        padding: 16px 24px;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 700;
+      }
+      .container {
+        max-width: 1024px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+      .controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .count {
+        color: #565c65;
+        font-size: 16px;
+      }
+      button {
+        font-family: var(--font-sans);
+        font-size: 15px;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        background: #d83933;
+        color: var(--color-white);
+      }
+      button:focus {
+        outline: 3px solid var(--color-accent-cool);
+        outline-offset: 2px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 15px;
+      }
+      thead th {
+        background: var(--color-primary-darker);
+        color: var(--color-white);
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 4px solid var(--color-accent-cool);
+      }
+      tbody td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--color-base-lighter);
+        vertical-align: top;
+      }
+      tbody tr:nth-child(even) {
+        background: #f9f9f9;
+      }
+      .filename {
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 13px;
+        color: #565c65;
+        word-break: break-all;
+      }
+      a {
+        color: var(--color-primary-darker);
+      }
+      .empty {
+        text-align: center;
+        color: #565c65;
+        padding: 48px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>💾 Saved Transcripts</h1>
+    </header>
+    <div class="container">
+      <div class="controls">
+        <span class="count" id="count">Loading…</span>
+        <button id="clear">Clear log</button>
+      </div>
+      <div id="content"></div>
+    </div>
+    <script src="history.js"></script>
+  </body>
+</html>
