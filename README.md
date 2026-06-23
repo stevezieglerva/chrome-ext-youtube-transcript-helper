@@ -23,16 +23,19 @@ It works around YouTube's anti-automation measures (headless UA detection, trans
 ### File format
 
 ```
-Title:   Why Are The Fireflies Disappearing
-Channel: Gordon Crum
-URL:     https://www.youtube.com/watch?v=40Dia4xBDBY
-Saved:   2026-06-23T12:47:03.123Z
-Lines:   312
+Title:    Why Are The Fireflies Disappearing
+Channel:  Gordon Crum
+URL:      https://www.youtube.com/watch?v=40Dia4xBDBY
+Saved:    2026-06-23T12:47:03.123Z
+Lines:    312
+Saved by: YouTube Transcript Helper v1.7.0
 ============================================================
-[00:00:00] First line of the transcript.
-[00:00:04] Second line of the transcript.
+First line of the transcript.
+Second line of the transcript.
 ...
 ```
+
+> Transcript lines are saved as **text only** — timestamps are omitted from the output.
 
 > **Note:** Chrome extensions can only write inside the Downloads folder via the
 > `chrome.downloads` API — arbitrary filesystem paths require a native-messaging
