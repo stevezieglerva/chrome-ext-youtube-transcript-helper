@@ -6,6 +6,9 @@
 const DOWNLOAD_ROOT = "youtube-transcripts";
 const SAVE_LOG_KEY = "saveLog";
 const SAVE_LOG_MAX = 500;
+const VERSION = chrome.runtime.getManifest().version;
+
+console.log(`[YTH] service worker loaded — v${VERSION}`);
 
 // --- Sanitization --------------------------------------------------------
 
@@ -166,6 +169,7 @@ function pageScrapeTranscript() {
 async function triggerActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   console.log("[YTH] trigger; active tab url =", tab?.url);
+  notify(`Scraping transcript… (v${VERSION})`, "Reading the open transcript panel.");
   if (!tab || !/^https?:\/\/www\.youtube\.com\/watch/.test(tab.url || "")) {
     notify("Not a YouTube video", "Navigate to a YouTube video first.");
     return;

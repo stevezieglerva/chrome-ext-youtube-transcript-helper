@@ -64,6 +64,8 @@ async function load() {
   render(Array.isArray(stored[SAVE_LOG_KEY]) ? stored[SAVE_LOG_KEY] : []);
 }
 
+document.getElementById("version").textContent = "v" + chrome.runtime.getManifest().version;
+
 document.getElementById("clear").addEventListener("click", async () => {
   if (confirm("Clear the entire saved-transcript log? This does not delete the files.")) {
     await chrome.storage.local.set({ [SAVE_LOG_KEY]: [] });
