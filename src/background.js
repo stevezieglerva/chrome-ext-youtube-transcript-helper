@@ -3,7 +3,7 @@
 // chrome.downloads, fires a notification, and appends a SaveLogEntry to
 // chrome.storage.local. Also handles toolbar-icon and keyboard triggers.
 
-const DOWNLOAD_ROOT = "youtube-transcripts";
+const FILE_PREFIX = "yt_transcript_";
 const SAVE_LOG_KEY = "saveLog";
 const SAVE_LOG_MAX = 500;
 const VERSION = chrome.runtime.getManifest().version;
@@ -60,26 +60,48 @@ async function appendSaveLog(entry) {
   await chrome.storage.local.set({ [SAVE_LOG_KEY]: trimmed });
 }
 
+// --- Filename intercept ---------------------------------------------------
+// Maps downloadId → intended filename, resolved via onDeterminingFilename.
+const pendingFilenames = new Map();
+
+chrome.downloads.onDeterminingFilename.addListener((downloadItem, suggest) => {
+  if (!pendingFilenames.has(downloadItem.id)) return;
+  const filename = pendingFilenames.get(downloadItem.id);
+  pendingFilenames.delete(downloadItem.id);
+  suggest({ filename, conflictAction: "uniquify" });
+});
+
+// --- Blob URL via offscreen document --------------------------------------
+// Chrome ignores the filename param on blob:/data: URLs; we rename post-download.
+
+async function createBlobUrl(text) {
+  try {
+    await chrome.offscreen.createDocument({
+      url: chrome.runtime.getURL("offscreen.html"),
+      reasons: ["BLOBS"],
+      justification: "Create blob URL for transcript download",
+    });
+  } catch {
+    // Already exists — reuse it
+  }
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: "yth-blob", content: text }, (r) => resolve(r.url));
+  });
+}
+
 // --- Core save ------------------------------------------------------------
 
 async function saveTranscript(payload, tabId) {
   const savedAtIso = new Date().toISOString();
-  const safeChannel = sanitize(payload.channel_name) || "Unknown_Channel";
   const safeTitle = sanitize(payload.video_title) || "untitled";
-  const filename = `${DOWNLOAD_ROOT}/${payload.video_id}_${safeTitle}.txt`;
+  const filename = `${FILE_PREFIX}${payload.video_id}_${safeTitle}.transcript`;
 
   const text = buildFileText(payload, savedAtIso);
-  // Service workers have no URL.createObjectURL; use a data URL.
-  const dataUrl = "data:text/plain;charset=utf-8," + encodeURIComponent(text);
+  const blobUrl = await createBlobUrl(text);
   console.log("[YTH] downloading:", filename, `(${payload.lines.length} lines)`);
 
   chrome.downloads.download(
-    {
-      url: dataUrl,
-      filename,
-      conflictAction: "overwrite",
-      saveAs: false,
-    },
+    { url: blobUrl, saveAs: false },
     (downloadId) => {
       if (chrome.runtime.lastError || downloadId === undefined) {
         console.error("[YTH] download failed:", chrome.runtime.lastError);
@@ -88,10 +110,10 @@ async function saveTranscript(payload, tabId) {
         if (tabId) showToast(tabId, `❌ Save failed: ${msg}`, "#d83933");
         return;
       }
-      console.log("[YTH] download started, id =", downloadId);
-      const rel = `${payload.video_id}_${safeTitle}.txt`;
-      notify("Transcript saved", rel);
-      if (tabId) showToast(tabId, `✅ Saved ${payload.lines.length} lines → ${rel}`, "#00a91c");
+      console.log("[YTH] download started, id =", downloadId, "→ filename intercepted as", filename);
+      pendingFilenames.set(downloadId, filename);
+      notify("Transcript saved", filename);
+      if (tabId) showToast(tabId, `✅ Saved ${payload.lines.length} lines → ${filename}`, "#00a91c");
     }
   );
 
@@ -99,7 +121,6 @@ async function saveTranscript(payload, tabId) {
     video_id: payload.video_id,
     video_title: payload.video_title,
     channel_name: payload.channel_name,
-    safe_channel: safeChannel,
     safe_title: safeTitle,
     video_url: payload.video_url,
     saved_at: savedAtIso,
@@ -295,7 +316,7 @@ async function triggerActiveTab() {
       JSON.stringify(result?.debug || {}, null, 2);
     chrome.downloads.download({
       url: "data:text/plain;charset=utf-8," + encodeURIComponent(dbg),
-      filename: `${DOWNLOAD_ROOT}/_DEBUG.txt`,
+      filename: `_DEBUG.txt`,
       conflictAction: "overwrite",
       saveAs: false,
     });

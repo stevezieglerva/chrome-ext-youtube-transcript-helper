@@ -118,14 +118,19 @@ function injectButton() {
   btn.addEventListener("mouseenter", () => (btn.style.background = "#005ea2"));
   btn.addEventListener("mouseleave", () => (btn.style.background = "#0b4778"));
   btn.addEventListener("click", () => {
-    const result = scrapeTranscript();
-    if (result.ok) {
-      btn.textContent = "⏳ Saving...";
-      chrome.runtime.sendMessage({ type: "save", payload: result.payload }, () => {
-        btn.textContent = "💾 Save Transcript";
-      });
-    } else {
-      chrome.runtime.sendMessage({ type: "scrape-failed", reason: result.reason });
+    try {
+      const result = scrapeTranscript();
+      if (result.ok) {
+        btn.textContent = "⏳ Saving...";
+        chrome.runtime.sendMessage({ type: "save", payload: result.payload }, () => {
+          btn.textContent = "💾 Save Transcript";
+        });
+      } else {
+        chrome.runtime.sendMessage({ type: "scrape-failed", reason: result.reason });
+      }
+    } catch (e) {
+      btn.textContent = "⚠️ Reload page";
+      btn.title = "Extension was reloaded — refresh this tab to reconnect";
     }
   });
 
