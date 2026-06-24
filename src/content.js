@@ -129,7 +129,7 @@ function injectButton() {
     }
   });
 
-  panel.prepend(btn);
+  panel.append(btn);
 }
 
 // --- Panel detection (MutationObserver) ----------------------------------
