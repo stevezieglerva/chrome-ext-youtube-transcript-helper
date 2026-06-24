@@ -66,7 +66,7 @@ async function saveTranscript(payload, tabId) {
   const savedAtIso = new Date().toISOString();
   const safeChannel = sanitize(payload.channel_name) || "Unknown_Channel";
   const safeTitle = sanitize(payload.video_title) || "untitled";
-  const filename = `${DOWNLOAD_ROOT}/${safeChannel}/${payload.video_id}_${safeTitle}.txt`;
+  const filename = `${DOWNLOAD_ROOT}/${payload.video_id}_${safeTitle}.txt`;
 
   const text = buildFileText(payload, savedAtIso);
   // Service workers have no URL.createObjectURL; use a data URL.
@@ -89,7 +89,7 @@ async function saveTranscript(payload, tabId) {
         return;
       }
       console.log("[YTH] download started, id =", downloadId);
-      const rel = `${safeChannel}/${payload.video_id}_${safeTitle}.txt`;
+      const rel = `${payload.video_id}_${safeTitle}.txt`;
       notify("Transcript saved", rel);
       if (tabId) showToast(tabId, `✅ Saved ${payload.lines.length} lines → ${rel}`, "#00a91c");
     }
